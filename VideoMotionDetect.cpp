@@ -1,23 +1,24 @@
 #include <stdio.h>
 #include <opencv2/opencv.hpp>
 using namespace cv;
+using namespace std;
+
 int main(int argc, char** argv )
 {
-    if ( argc != 2 )
-    {
-        printf("usage: DisplayImage.out <Image_Path>\n");
-        return -1;
-    }
+
+    string path = "../Resources/VideoTest.mkv";
+    VideoCapture cap(path);
     Mat image;
-    image = imread( argv[1], 1 );
-    if ( !image.data )
+    while (true)
     {
-        printf("No image data \n");
-        return -1;
+        cap.read(image);
+        imshow("Display Image", image);
+        waitKey(10);
     }
-    namedWindow("Display Image", WINDOW_AUTOSIZE );
-    imshow("Display Image", image);
-    waitKey(0); // serve per non far chiudere la finestra dell'immagine, con 0 significa che non si chiude mai fino a quando non la chiudo io premendo su x
+    
+
+     namedWindow("Display Image", WINDOW_AUTOSIZE );
+    // serve per non far chiudere la finestra dell'immagine, con 0 significa che non si chiude mai fino a quando non la chiudo io premendo su x
     return 0;
 
 }
