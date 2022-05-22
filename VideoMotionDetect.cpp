@@ -15,43 +15,38 @@ int main(int argc, char **argv)
     Mat image;
     Mat imgGray;
     Mat imgSmooth;
+    Mat bgr[3];
 
     start = std::chrono::system_clock::now();
 
     while (true)
     {
         cap.read(image);
-
+        split(image,bgr);
+        // Mat bigCube(image.rows,image.cols , CV_8U, Scalar::all(0));   // crea una matrice che è tutta nera, infatti alla fine fa scalar all 0, cioè applica a tutte le celle il valore 0 che è il nero
+        Mat greyColor = (bgr[0]+bgr[1]+bgr[2])/3; // matrice con un solo colore, che è quello grigio
+        Mat container[3] = {greyColor,greyColor,greyColor}; // in questo modo creiamo una matrice container che ha 3 canali(colori) che hanno lo stesso valore
+        merge(container,3,imgGray); // in quessto modo andiamo a creare l'immagine imgGray che è formata dalle matrici che sono in container
         // imgSmooth=imgGray.clone();
         
         for (int i = 0; i < image.rows; i++)
         {
             for (int j = 0; j < image.cols; j++)
             {
-                int value=(image.at<Vec3b>(i,j)[0]+image.at<Vec3b>(i,j)[1]+image.at<Vec3b>(i,j)[2])/3;
-                 image.at<Vec3b>(i,j)[0]=value;
-                 image.at<Vec3b>(i,j)[1]=value;
-                 image.at<Vec3b>(i,j)[2]=value;
                  int contatore = 0;
-
                 for (int I = max(i - 1, 0); I < min(i + 2, image.rows); ++I)
                 {
                     for (int J = max(j - 1, 0); J < min(j + 2, image.cols); ++J)
                     {
-                        contatore = contatore + image.at<int>(I, J);
                     }
-                }
-                // Il contatore qui è la somma dei valori dei vicini
-                // imgGray.at<Vec3b>(i,j)= contatore;
-
-
-                
+                }  
             }
         }
-
         // cvtColor(image,imgGray,COLOR_BGR2GRAY);
-        imshow("Display Video", image);
-        waitKey(10);
+        imshow("Display Video", imgGray);
+        char key= waitKey(1);
+        if( key == 'q')
+            return 0;
     }
     stop = std::chrono::system_clock::now();
     auto musec = std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
