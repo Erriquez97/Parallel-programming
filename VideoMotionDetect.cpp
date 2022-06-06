@@ -1,98 +1,158 @@
 #include <stdio.h>
 #include <opencv2/opencv.hpp>
 #include <chrono>
+#include <thread>
 using namespace cv;
 using namespace std;
 
 std::chrono::system_clock::time_point start;
 std::chrono::system_clock::time_point stop;
+mutex blocco;
+mutex queueLock;
+float minthreshold = 0.6;
+int differentFrames = 0;
+Mat firstFrame;
+queue<Mat> queueImages;
+bool endVideo = false;
+bool fine = true;
+
+Mat calcGrey(Mat image)
+{
+    Mat bgr[3];
+    split(image, bgr);
+    Mat imgGray = (bgr[0] + bgr[1] + bgr[2]) / 3;
+    return imgGray;
+}
+
+Mat calcSmooth(Mat imgGrey)
+{
+    Mat imgSmooth = imgGrey.clone();
+    for (int i = 0; i < imgGrey.rows; i++)
+    {
+        for (int j = 0; j < imgGrey.cols; j++)
+        {
+            short contatore = 0;
+            int value = 0;
+            for (int I = max(i - 1, 0); I < min(i + 2, imgGrey.rows); ++I)
+            {
+                for (int J = max(j - 1, 0); J < min(j + 2, imgGrey.cols); ++J)
+                {
+                    contatore++;
+                    value = value + (uchar)imgGrey.at<uchar>(I, J); // reason of uchar: CV_8U is unsigned 8bit/pixel - ie a pixel can have values 0-255, this is the normal range for most image and video formats.
+                }
+            }
+            imgSmooth.at<uchar>(i, j) = value / contatore;
+        }
+    }
+
+    return imgSmooth;
+}
+
+void calcImg(Mat image, Mat firstFrame, float threshold)
+{
+    Mat diffImage;
+    image = calcGrey(image);
+    image = calcSmooth(image);
+    absdiff(firstFrame, image, diffImage);
+    float numberDifferentPixels = countNonZero(diffImage); // PIXEL UGUALI A 0 SIGNIFICA CHE SONO UGUALI ALL'IMMAGINE COMPARATA
+    float grandezza = diffImage.rows * diffImage.cols;
+    float risultato = numberDifferentPixels / grandezza;
+    if (risultato > threshold)
+    {
+        blocco.lock();
+        differentFrames++;
+        blocco.unlock();
+    }
+}
+
+void takeImage()
+{
+    while (true)
+    {
+        Mat image;
+        bool enter = false;
+        if (queueImages.empty() && endVideo)
+        {
+            break;
+        }
+
+        queueLock.lock();
+
+        if (!queueImages.empty())
+        {
+            image = queueImages.front();
+            queueImages.pop();
+            enter = true;
+        }
+        queueLock.unlock();
+        if (enter && !image.empty())
+            calcImg(image, firstFrame, minthreshold);
+    }
+}
 
 int main(int argc, char **argv)
 {
-
-    string path = "../Resources/VideoTest.mp4";
-    VideoCapture cap(path);
-    Mat image;
-    Mat imgGray;
-    Mat imgSmooth;
-    Mat firstFrame;
-    Mat diffImage;
-    float threshold = 30.0f;
-    Mat bgr[3];
-    int h3[3][3] = {{1, 2, 1}, {2, 4, 2}, {1, 2, 1}};
     start = std::chrono::system_clock::now();
-    int fff = 0;
-    cap.read(firstFrame);
+    string path = "../Resources/VideoTest2.mp4";
+    VideoCapture cap(path);
+    
+    int h3[3][3] = {{1, 2, 1}, {2, 4, 2}, {1, 2, 1}};
+    int actualFrame = 0;
+    int cores = stoi(argv[1]);
+    vector<thread> listThreads;
 
-    while (true)
+    if (cores >=1)
     {
-        cap.read(image);
-        split(image, bgr);                            // Divides a multi-channel array into several single-channel arrays.
-        Mat imgGray = (bgr[0] + bgr[1] + bgr[2]) / 3; // matrice con un solo colore, che è quello grigio
-        imgSmooth = imgGray.clone();
-
-        blur(imgGray, imgSmooth, Size(6, 6));
-        if (fff == 0)
+        for (int i = 0; i < cores; i++)
         {
-            firstFrame = imgSmooth.clone();
+            listThreads.push_back(thread(takeImage));
+        }
+    }
+
+    while (cap.isOpened() && !endVideo)
+    {
+        Mat image;
+        cap.read(image);
+        if (actualFrame == 0)
+        {
+            firstFrame = image.clone();
+            firstFrame = calcGrey(firstFrame);
+            firstFrame = calcSmooth(firstFrame);
         }
 
-        // for (int i = 0; i < imgGray.rows; i++)
-        // {
-        //     for (int j = 0; j < imgGray.cols; j++)
-        //     {
-        //         int contatore = 0;
-        //         int value =0;
-        //         for (int I = max(i - 1, 0); I < min(i + 2, imgGray.rows); ++I)
-        //         {
-        //             for (int J = max(j - 1, 0); J < min(j + 2, imgGray.cols); ++J)
-        //             {
-        //                 contatore++;
-        //                 Vec3b bgrPixel = imgGray.at<Vec3b>(I, J);
-        //                 value = value + (int) bgrPixel[0]; // prendo solo il primo perché essendo l'immagine grigia tutti e 3 i canali hanno lo stesso valore
-        //             }
-        //         }
-        //         imgSmooth.at<Vec3b>(i,j)[0]= value/contatore;
-        //         imgSmooth.at<Vec3b>(i,j)[1]= value/contatore;
-        //         imgSmooth.at<Vec3b>(i,j)[2]= value/contatore;
+        if (cores >= 1)
+        {
+            queueImages.push(image);
+        }else if(!image.empty()){
+            calcImg(image,firstFrame,minthreshold);
+        }
+        char key = waitKey(1);
 
-        //     }
+        if (!image.empty())
+        {
+            // imshow("Display video",image);
+        }
+        else
+        {
+            endVideo = true;
+        }
 
-        // }
-
-        absdiff(firstFrame, imgSmooth, diffImage);
-        float numberDifferentPixels = countNonZero(diffImage); // PIXEL UGUALI A 0 SIGNIFICA CHE SONO UGUALI ALL'IMMAGINE COMPARATA
-        float grandezza = diffImage.rows * diffImage.cols;
-        float risultato= numberDifferentPixels /grandezza;
-        cout << "NUMERO DI PIXEL DIVERSI: " << numberDifferentPixels << endl;
-        cout << "GRANDEZZA FRAME: " << grandezza <<endl;
-        cout << "PERCENNTUALE DIVERSA : " << risultato *100 << endl;
-
-        // int numPixel=0;
-        // int numPixel0=0;
-        // for(int i=0; i< diffImage.rows; i++){
-        //     for(int j=0; j<diffImage.cols; j++){
-        //         if(diffImage.at<int>(i,j)==0){
-        //             numPixel0++;
-        //         }
-        //         numPixel++;
-        //         // cout << "  NUMERO DI PIXEL: " << (ushort) diffImage.at<Vec3b>(i,j)[0] <<endl;
-
-        //     }
-        // }
-        // cout << "NUMERO DI PIXEL: " << numPixel <<endl;
-        // cout << "NUMERO DI PIXEL DIVERSI: "<< numPixel0 <<endl;
-
-        // cout << "VALORE SMOOTH: " << (int)imgSmooth.at<Vec3b>(23, 23)[0] << endl;
-        // cout << "VALORE GRIGIA: " << (int)imgGray.at<Vec3b>(23, 23)[0] << endl;
-        fff++;
-        imshow("Display Video", diffImage);
-        char key = waitKey(100);
+        actualFrame++;
         if (key == 'q')
             return 0;
     }
+    if (cores >= 1)
+    {
+        for (int i = 0; i < cores; i++)
+        {
+            listThreads[i].join();
+        }
+    }
+
+    cout << "Numero di frame diversi: " << differentFrames << endl;
     stop = std::chrono::system_clock::now();
-    auto musec = std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
-    cout << "Microseconds: " << musec << endl;
+    auto musec = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count();
+    cout << "Milliseconds: " << musec << endl;
+
     return 0;
 }
