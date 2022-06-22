@@ -1,7 +1,7 @@
 [
 {
   "directory": "/home/domenico/VideoMotionDetect/build",
-  "command": "/usr/bin/g++   -isystem /usr/include/opencv4   -pthread -g   -o CMakeFiles/VideoMotionDetect.dir/VideoMotionDetect.cpp.o -c /home/domenico/VideoMotionDetect/VideoMotionDetect.cpp",
+  "command": "/usr/bin/g++   -I/home/domenico/VideoMotionDetect/./include -isystem /usr/include/opencv4   -pthread -O3 -ftree-vectorize -g   -o CMakeFiles/VideoMotionDetect.dir/VideoMotionDetect.cpp.o -c /home/domenico/VideoMotionDetect/VideoMotionDetect.cpp",
   "file": "/home/domenico/VideoMotionDetect/VideoMotionDetect.cpp"
 }
 ]
