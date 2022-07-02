@@ -169,12 +169,13 @@ public:
 int main(int argc, char **argv)
 {
     start = std::chrono::system_clock::now();
-    int cores = stoi(argv[1]);
-    int ff = stoi(argv[2]);
+    unsigned short cores = atoi(argv[1]);
+    unsigned short ff = atoi(argv[2]);
+    std::string path = (argv[3]);
     Mat firstFrame;
     int actualFrame = 0;
     vector<thread> listThreads;
-    string path = "../Resources/Video720p.mp4";
+    // string path = "../Resources/Video720p.mp4";
     VideoCapture cap(path);
     bool endVideo = false;
     queue<Mat> queueImages;
@@ -182,7 +183,7 @@ int main(int argc, char **argv)
 
     if (cores >= 1 && ff == 0) // COMPUTAZIONE PARALLELA
     {
-        for (int i = 0; i < cores; i++)
+        for (unsigned short i = 0; i < cores; i++)
         {
             listThreads.push_back(thread(takeImage, &firstFrame, &endVideo, &queueImages, &condVar));
         }
@@ -210,7 +211,7 @@ int main(int argc, char **argv)
             actualFrame++;
         }
         stopRead = std::chrono::system_clock::now();
-        for (int i = 0; i < cores; i++)
+        for (unsigned short i = 0; i < cores; i++)
         {
             listThreads[i].join();
         }
@@ -224,7 +225,7 @@ int main(int argc, char **argv)
             firstFrame = getBackground(&image);
             emitter s1(&cap, &endVideo);
             vector<unique_ptr<ff_node>> W;
-            for (int i = 0; i < cores; i++)
+            for (unsigned short i = 0; i < cores; i++)
             {
                 W.push_back(make_unique<calculate>(firstFrame));
             }
