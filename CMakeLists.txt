@@ -11,4 +11,4 @@ target_include_directories( VideoMotionDetect PUBLIC "./include/")
 # add_compile_options(-fopt-info-vec-all)
 
 
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread -O3 -ftree-vectorize")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread -O3 -ftree-vectorize -DTRACE_FASTFLOW")

@@ -10,38 +10,46 @@ using namespace ff;
 using namespace cv;
 using namespace std;
 
-class sharedQueue{
-
-};
-
 chrono::system_clock::time_point start;
 chrono::system_clock::time_point stop;
+chrono::system_clock::time_point startRead;
+chrono::system_clock::time_point stopRead;
+chrono::system_clock::time_point startGrey;
+chrono::system_clock::time_point stopGrey;
+chrono::system_clock::time_point startBlur;
+chrono::system_clock::time_point stopBlur;
+chrono::system_clock::time_point startMotion;
+chrono::system_clock::time_point stopMotion;
 mutex queueLock;
-float minthreshold = 0.6;
+float minthreshold = 0.7;
 atomic<int> differentFrames;
-Mat firstFrame;
 queue<Mat> queueImages;
 bool endVideo = false;
 condition_variable condVar;
-
-string path = "../Resources/VideoTest2.mp4";
+string path = "../Resources/Video720p.mp4";
 VideoCapture cap(path);
-int h3[3][3] = {{1, 2, 1}, {2, 4, 2}, {1, 2, 1}};
-int actualFrame = 0;
-vector<thread> listThreads;
 
-Mat calcGrey(Mat *image)
+int greytotal=0;
+int timescalledGrey=0;
+
+void greyFilter(Mat *image)
 {
+    timescalledGrey++;
+    startGrey = std::chrono::system_clock::now();
     Mat bgr[3];
     split(*image, bgr);
     Mat imgGray = (bgr[0] + bgr[1] + bgr[2]) / 3;
-    return imgGray;
+    *image = imgGray;
+    stopGrey = std::chrono::system_clock::now();
+    auto musecGrey = std::chrono::duration_cast<std::chrono::microseconds>(stopGrey - startGrey).count();
+    greytotal+=musecGrey;
 }
 
-Mat calcSmooth(Mat *imgGrey)
+void blurFilter(Mat *imgGrey)
 {
+    startBlur = std::chrono::system_clock::now();
     Mat imgSmooth = imgGrey->clone();
-    // blur(imgGrey, imgSmooth, Size(3, 3));
+    //   blur(*imgGrey, imgSmooth, Size(3, 3));
     for (int i = 0; i < imgGrey->rows; i++)
     {
         for (int j = 0; j < imgGrey->cols; j++)
@@ -59,30 +67,38 @@ Mat calcSmooth(Mat *imgGrey)
             imgSmooth.at<uchar>(i, j) = value / count;
         }
     }
-    return imgSmooth;
+    *imgGrey = imgSmooth;
+    stopBlur = std::chrono::system_clock::now();
 }
 
-int calcImg(Mat *image, Mat *firstFrame)
+int checkMotion(Mat *image, Mat *firstFrame)
 {
-    Mat diffImage;
-    *image = calcGrey(image);
-    *image = calcSmooth(image);
-    absdiff(*firstFrame, *image, diffImage);
-    float numberDifferentPixels = countNonZero(diffImage); // PIXEL UGUALI A 0 SIGNIFICA CHE SONO UGUALI ALL'IMMAGINE COMPARATA
-    float size = diffImage.rows * diffImage.cols;
-    float result = numberDifferentPixels / size;
-    if (result > minthreshold)
+   
+    if (!image->empty())
     {
-        return 1;
+        Mat diffImage;
+        greyFilter(image);
+        blurFilter(image);
+        absdiff(*firstFrame, *image, diffImage);
+        float numberDifferentPixels = countNonZero(diffImage); // PIXEL UGUALI A 0 SIGNIFICA CHE SONO UGUALI ALL'IMMAGINE COMPARATA
+        float size = diffImage.rows * diffImage.cols;
+        float result = numberDifferentPixels / size;
+        return result > minthreshold;
     }
-    else
-        return 0;
+   
+    return 0;
 }
 
-void takeImage()
+Mat getBackground(Mat *image)
+{
+    greyFilter(image);
+    blurFilter(image);
+    return *image;
+}
+
+void takeImage(Mat *firstframe)
 {
     int localresult = 0;
-
     while (true)
     {
         Mat image;
@@ -102,61 +118,75 @@ void takeImage()
         enter = true;
         l.unlock();
         if (enter && !image.empty())
-            localresult += calcImg(&image, &firstFrame);
+            localresult += checkMotion(&image, firstframe);
     }
     differentFrames += localresult;
 }
 
-// class emitter: public ff_monode_t <Mat>{
+//  FASTFLOW
 
-// public:
-//     emitter(){}
+class emitter : public ff_monode_t<Mat>
+{
 
-//     Mat *svc(Mat * image)
-//     {
-//         int contatore=0;
-//         while (cap.isOpened() && !endVideo)
-//         {
-//             Mat image;
-//             cap.read(image);
-//             if (image.empty())
-//             {
-//                 cout << "EMPTY" << endl;
-//                 endVideo = true;
-//                 return(EOS);
-//             }
-//             contatore++;
-//             cout<< "CONTATORE: "<< contatore <<endl;
-//             ff_send_out(&image);
-//         }
-//         return (EOS);
-//     }
-// };
+public:
+    emitter() {}
 
-// class calculate : public ff_node_t <Mat>{
+    Mat *svc(Mat *imageaa)
+    {
+        startRead = std::chrono::system_clock::now();
+        while (cap.isOpened() && !endVideo)
+        {
+            Mat *image = new Mat();
+            cap.read(*image);
+            if (image->empty())
+            {
+                endVideo = true;
+                return (EOS);
+            }
+            ff_send_out(image);
+        }
+        stopRead = std::chrono::system_clock::now();
+        return (EOS);
+    }
+};
 
-// public:
-//     calculate(){}
-//     Mat *svc(Mat * image){
-//         cout << "GOT IT " <<endl;
-//         // differentFrames+= calcImg(image,firstFrame);
-//         return(GO_ON);
-//    }
-// };
+class calculate : public ff_node_t<Mat>
+{
+private:
+    Mat firstframe;
+    int localresult = 0;
+
+public:
+    calculate(Mat firstframe) : firstframe(firstframe) {}
+    Mat *svc(Mat *image)
+    {
+        localresult += checkMotion(image, &firstframe);
+        return (GO_ON);
+    }
+    void svc_end()
+    {
+        differentFrames += localresult;
+    }
+};
+
+// END FASTFLOW
 
 int main(int argc, char **argv)
 {
     start = std::chrono::system_clock::now();
     int cores = stoi(argv[1]);
     int ff = stoi(argv[2]);
+    Mat firstFrame;
+    int actualFrame = 0;
+    vector<thread> listThreads;
 
     if (cores >= 1 && ff == 0) // COMPUTAZIONE PARALLELA
     {
         for (int i = 0; i < cores; i++)
         {
-            listThreads.push_back(thread(takeImage));
+            listThreads.push_back(thread(takeImage, &firstFrame));
         }
-
+        startRead = std::chrono::system_clock::now();
         while (cap.isOpened() && !endVideo)
         {
             Mat image;
@@ -168,9 +198,7 @@ int main(int argc, char **argv)
             }
             if (actualFrame == 0)
             {
-                firstFrame = image.clone();
-                firstFrame = calcGrey(&firstFrame);
-                firstFrame = calcSmooth(&firstFrame);
+                firstFrame = getBackground(&image);
             }
             else
             {
@@ -179,12 +207,9 @@ int main(int argc, char **argv)
                 l.unlock();
                 condVar.notify_one();
             }
-            char key = waitKey(1);
             actualFrame++;
-
-            if (key == 'q')
-                return 0;
         }
+        stopRead = std::chrono::system_clock::now();
         for (int i = 0; i < cores; i++)
         {
             listThreads[i].join();
@@ -193,20 +218,20 @@ int main(int argc, char **argv)
     else
     {
         if (ff == 1) // COMPUTAZIONE CON FASTFLOW
-        {
-            // emitter s1;
-            // calculate s2;
+        {   
             Mat image;
             cap.read(image);
-            firstFrame = image.clone();
-            firstFrame = calcGrey(&firstFrame);
-            firstFrame = calcSmooth(&firstFrame);
-
-            // ff_Pipe<> pipe(s1,s2);
-            // pipe.run_and_wait_end();
-            // cout<< "DifferentFrames: " << differentFrames <<endl;
-
-            // farm di fastflow
+            firstFrame = getBackground(&image);
+            emitter s1;
+            vector<unique_ptr<ff_node>> W;
+            for(int i=0; i<cores;i++){
+                W.push_back(make_unique<calculate>(firstFrame));
+            }
+            ff_Farm<Mat>fa(move(W));
+            fa.add_emitter(s1);
+            fa.remove_collector();
+            fa.run_and_wait_end();
+            fa.ffStats(cout);
         }
         else // COMPUTAZIONE SEQUENZIALE
         {
@@ -214,6 +239,7 @@ int main(int argc, char **argv)
             {
                 Mat image;
                 cap.read(image);
+                int result=0;
                 if (image.empty())
                 {
                     endVideo = true;
@@ -221,23 +247,42 @@ int main(int argc, char **argv)
                 }
                 if (actualFrame == 0)
                 {
-                    firstFrame = image.clone();
-                    firstFrame = calcGrey(&firstFrame);
-                    firstFrame = calcSmooth(&firstFrame);
+                    firstFrame = getBackground(&image);
                 }
-                differentFrames += calcImg(&image, &firstFrame);
-                char key = waitKey(1);
-                actualFrame++;
-                if (key == 'q')
-                    return 0;
+                else
+                {
+                    startMotion = std::chrono::system_clock::now();
+                    result = checkMotion(&image, &firstFrame);
+                    stopMotion = std::chrono::system_clock::now();
+                    differentFrames+= result;
+                }
+                // if(result==1){
+                //     cout<<"MOTION: "<< actualFrame<<endl;
+                // }
+                // if(!image.empty()){
+                //     imshow("Display video", image);
+                // }
+                
+                // auto musecBlur = std::chrono::duration_cast<std::chrono::microseconds>(stopBlur - startBlur).count();
+                // auto musecMotion = std::chrono::duration_cast<std::chrono::microseconds>(stopMotion - startMotion).count();
+                // cout << musecGrey << endl;
+                // cout << "Time Blur: " << musecBlur << endl;
+                // cout << "Time Motion: " << musecMotion << endl;
+                actualFrame++; 
+                // char key = waitKey(1);
+                // if (key == 'q')
+                //     return 0;
             }
         }
     }
+    int finalGrey= greytotal/timescalledGrey;
+    cout << "GREY FINAL AVERAGE: "  << finalGrey<<endl;
     stop = std::chrono::system_clock::now();
-    auto musec = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count();
-    cout << "Numero frame diversi: " << differentFrames << endl;
-    cout << "Milliseconds: " << musec << endl;
+    // auto musec = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count();
+    // auto musecRead = std::chrono::duration_cast<std::chrono::milliseconds>(stopRead - startRead).count();
+    // cout << "Numero frame diversi: " << differentFrames << endl;
+    // cout << "numero totale frames: "  << actualFrame <<endl;
+    // cout << "Read Time: " << musecRead << endl;
+    // cout << "Completion Time: " << musec << endl;
     return 0;
 }
-
-// Da fare: modificare funzione blur, vedere fastflow
