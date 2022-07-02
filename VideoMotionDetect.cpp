@@ -20,17 +20,12 @@ chrono::system_clock::time_point startBlur;
 chrono::system_clock::time_point stopBlur;
 chrono::system_clock::time_point startMotion;
 chrono::system_clock::time_point stopMotion;
-mutex queueLock;
-float minthreshold = 0.7;
-atomic<int> differentFrames;
-queue<Mat> queueImages;
-bool endVideo = false;
-condition_variable condVar;
-string path = "../Resources/Video720p.mp4";
-VideoCapture cap(path);
 
-int greytotal=0;
-int timescalledGrey=0;
+mutex queueLock;
+atomic<int> differentFrames;
+float minthreshold = 0.7;
+int greytotal = 0;
+int timescalledGrey = 0;
 
 void greyFilter(Mat *image)
 {
@@ -42,7 +37,7 @@ void greyFilter(Mat *image)
     *image = imgGray;
     stopGrey = std::chrono::system_clock::now();
     auto musecGrey = std::chrono::duration_cast<std::chrono::microseconds>(stopGrey - startGrey).count();
-    greytotal+=musecGrey;
+    greytotal += musecGrey;
 }
 
 void blurFilter(Mat *imgGrey)
@@ -73,7 +68,6 @@ void blurFilter(Mat *imgGrey)
 
 int checkMotion(Mat *image, Mat *firstFrame)
 {
-   
     if (!image->empty())
     {
         Mat diffImage;
@@ -85,7 +79,6 @@ int checkMotion(Mat *image, Mat *firstFrame)
         float result = numberDifferentPixels / size;
         return result > minthreshold;
     }
-   
     return 0;
 }
 
@@ -96,7 +89,7 @@ Mat getBackground(Mat *image)
     return *image;
 }
 
-void takeImage(Mat *firstframe)
+void takeImage(Mat *firstframe, bool *endVideo, queue<Mat> *queueImages, condition_variable *condVar)
 {
     int localresult = 0;
     while (true)
@@ -104,17 +97,17 @@ void takeImage(Mat *firstframe)
         Mat image;
         bool enter = false;
         unique_lock<mutex> l(queueLock);
-        while (queueImages.empty() && !endVideo)
+        while (queueImages->empty() && !*endVideo)
         {
-            condVar.wait(l);
+            condVar->wait(l);
         }
-        if (queueImages.empty() && endVideo)
+        if (queueImages->empty() && *endVideo)
         {
-            condVar.notify_one();
+            condVar->notify_one();
             break;
         }
-        image = queueImages.front();
-        queueImages.pop();
+        image = queueImages->front();
+        queueImages->pop();
         enter = true;
         l.unlock();
         if (enter && !image.empty())
@@ -127,20 +120,22 @@ void takeImage(Mat *firstframe)
 
 class emitter : public ff_monode_t<Mat>
 {
+private:
+    VideoCapture *cap;
+    bool *endVideo;
 
 public:
-    emitter() {}
-
-    Mat *svc(Mat *imageaa)
+    emitter(VideoCapture *cap, bool *endVideo) : cap(cap), endVideo(endVideo) {}
+    Mat *svc(Mat *image)
     {
         startRead = std::chrono::system_clock::now();
-        while (cap.isOpened() && !endVideo)
+        while (cap->isOpened() && !*endVideo)
         {
             Mat *image = new Mat();
-            cap.read(*image);
+            cap->read(*image);
             if (image->empty())
             {
-                endVideo = true;
+                *endVideo = true;
                 return (EOS);
             }
             ff_send_out(image);
@@ -179,12 +174,17 @@ int main(int argc, char **argv)
     Mat firstFrame;
     int actualFrame = 0;
     vector<thread> listThreads;
+    string path = "../Resources/Video720p.mp4";
+    VideoCapture cap(path);
+    bool endVideo = false;
+    queue<Mat> queueImages;
+    condition_variable condVar;
 
     if (cores >= 1 && ff == 0) // COMPUTAZIONE PARALLELA
     {
         for (int i = 0; i < cores; i++)
         {
-            listThreads.push_back(thread(takeImage, &firstFrame));
+            listThreads.push_back(thread(takeImage, &firstFrame, &endVideo, &queueImages, &condVar));
         }
         startRead = std::chrono::system_clock::now();
         while (cap.isOpened() && !endVideo)
@@ -218,20 +218,21 @@ int main(int argc, char **argv)
     else
     {
         if (ff == 1) // COMPUTAZIONE CON FASTFLOW
-        {   
+        {
             Mat image;
             cap.read(image);
             firstFrame = getBackground(&image);
-            emitter s1;
+            emitter s1(&cap, &endVideo);
             vector<unique_ptr<ff_node>> W;
-            for(int i=0; i<cores;i++){
+            for (int i = 0; i < cores; i++)
+            {
                 W.push_back(make_unique<calculate>(firstFrame));
             }
-            ff_Farm<Mat>fa(move(W));
+            ff_Farm<Mat> fa(move(W));
             fa.add_emitter(s1);
             fa.remove_collector();
             fa.run_and_wait_end();
-            fa.ffStats(cout);
+            // fa.ffStats(cout);
         }
         else // COMPUTAZIONE SEQUENZIALE
         {
@@ -239,7 +240,7 @@ int main(int argc, char **argv)
             {
                 Mat image;
                 cap.read(image);
-                int result=0;
+                int result = 0;
                 if (image.empty())
                 {
                     endVideo = true;
@@ -254,7 +255,7 @@ int main(int argc, char **argv)
                     startMotion = std::chrono::system_clock::now();
                     result = checkMotion(&image, &firstFrame);
                     stopMotion = std::chrono::system_clock::now();
-                    differentFrames+= result;
+                    differentFrames += result;
                 }
                 // if(result==1){
                 //     cout<<"MOTION: "<< actualFrame<<endl;
@@ -262,27 +263,27 @@ int main(int argc, char **argv)
                 // if(!image.empty()){
                 //     imshow("Display video", image);
                 // }
-                
+
                 // auto musecBlur = std::chrono::duration_cast<std::chrono::microseconds>(stopBlur - startBlur).count();
                 // auto musecMotion = std::chrono::duration_cast<std::chrono::microseconds>(stopMotion - startMotion).count();
                 // cout << musecGrey << endl;
                 // cout << "Time Blur: " << musecBlur << endl;
                 // cout << "Time Motion: " << musecMotion << endl;
-                actualFrame++; 
+                actualFrame++;
                 // char key = waitKey(1);
                 // if (key == 'q')
                 //     return 0;
             }
         }
     }
-    int finalGrey= greytotal/timescalledGrey;
-    cout << "GREY FINAL AVERAGE: "  << finalGrey<<endl;
+    int finalGrey = greytotal / timescalledGrey;
+    cout << "GREY FINAL AVERAGE: " << finalGrey << endl;
     stop = std::chrono::system_clock::now();
-    // auto musec = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count();
-    // auto musecRead = std::chrono::duration_cast<std::chrono::milliseconds>(stopRead - startRead).count();
-    // cout << "Numero frame diversi: " << differentFrames << endl;
-    // cout << "numero totale frames: "  << actualFrame <<endl;
-    // cout << "Read Time: " << musecRead << endl;
-    // cout << "Completion Time: " << musec << endl;
+    auto musec = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count();
+    auto musecRead = std::chrono::duration_cast<std::chrono::milliseconds>(stopRead - startRead).count();
+    cout << "Numero frame diversi: " << differentFrames << endl;
+    cout << "numero totale frames: " << actualFrame << endl;
+    cout << "Read Time: " << musecRead << endl;
+    cout << "Completion Time: " << musec << endl;
     return 0;
 }
