@@ -6,6 +6,24 @@
 
 #IncludeRegexTransform: 
 
+../include/Functions.hpp
+opencv2/opencv.hpp
+-
+stdio.h
+-
+opencv2/opencv.hpp
+-
+chrono
+-
+thread
+-
+ff/ff.hpp
+-
+iostream
+-
+condition_variable
+-
+
 ../include/ff/all2all.hpp
 ff/node.hpp
 -
@@ -597,6 +615,8 @@ iostream
 -
 condition_variable
 -
+Functions.hpp
+/home/domenico/VideoMotionDetect/Functions.hpp
 
 /usr/include/opencv4/opencv2/calib3d.hpp
 opencv2/core.hpp

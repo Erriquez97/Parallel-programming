@@ -111,6 +111,19 @@ depend:
 .PHONY : depend
 
 #=============================================================================
+# Target rules for targets named Statistics
+
+# Build rule for target.
+Statistics: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 Statistics
+.PHONY : Statistics
+
+# fast build rule for target.
+Statistics/fast:
+	$(MAKE) -f CMakeFiles/Statistics.dir/build.make CMakeFiles/Statistics.dir/build
+.PHONY : Statistics/fast
+
+#=============================================================================
 # Target rules for targets named VideoMotionDetect
 
 # Build rule for target.
@@ -122,6 +135,33 @@ VideoMotionDetect: cmake_check_build_system
 VideoMotionDetect/fast:
 	$(MAKE) -f CMakeFiles/VideoMotionDetect.dir/build.make CMakeFiles/VideoMotionDetect.dir/build
 .PHONY : VideoMotionDetect/fast
+
+Statistics.o: Statistics.cpp.o
+
+.PHONY : Statistics.o
+
+# target to build an object file
+Statistics.cpp.o:
+	$(MAKE) -f CMakeFiles/Statistics.dir/build.make CMakeFiles/Statistics.dir/Statistics.cpp.o
+.PHONY : Statistics.cpp.o
+
+Statistics.i: Statistics.cpp.i
+
+.PHONY : Statistics.i
+
+# target to preprocess a source file
+Statistics.cpp.i:
+	$(MAKE) -f CMakeFiles/Statistics.dir/build.make CMakeFiles/Statistics.dir/Statistics.cpp.i
+.PHONY : Statistics.cpp.i
+
+Statistics.s: Statistics.cpp.s
+
+.PHONY : Statistics.s
+
+# target to generate assembly for a file
+Statistics.cpp.s:
+	$(MAKE) -f CMakeFiles/Statistics.dir/build.make CMakeFiles/Statistics.dir/Statistics.cpp.s
+.PHONY : Statistics.cpp.s
 
 VideoMotionDetect.o: VideoMotionDetect.cpp.o
 
@@ -157,8 +197,12 @@ help:
 	@echo "... clean"
 	@echo "... depend"
 	@echo "... rebuild_cache"
+	@echo "... Statistics"
 	@echo "... edit_cache"
 	@echo "... VideoMotionDetect"
+	@echo "... Statistics.o"
+	@echo "... Statistics.i"
+	@echo "... Statistics.s"
 	@echo "... VideoMotionDetect.o"
 	@echo "... VideoMotionDetect.i"
 	@echo "... VideoMotionDetect.s"

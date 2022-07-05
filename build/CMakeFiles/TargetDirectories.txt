@@ -1,3 +1,4 @@
 /home/domenico/VideoMotionDetect/build/CMakeFiles/rebuild_cache.dir
+/home/domenico/VideoMotionDetect/build/CMakeFiles/Statistics.dir
 /home/domenico/VideoMotionDetect/build/CMakeFiles/edit_cache.dir
 /home/domenico/VideoMotionDetect/build/CMakeFiles/VideoMotionDetect.dir

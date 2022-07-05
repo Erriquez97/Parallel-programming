@@ -1,0 +1,1 @@
+/usr/bin/g++   -pthread -O3 -ftree-vectorize -g  -rdynamic CMakeFiles/Statistcs.dir/Statistics.cpp.o  -o Statistcs 
