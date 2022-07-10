@@ -19,8 +19,7 @@ void greyFilter(Mat *image)
 {
     Mat bgr[3];
     split(*image, bgr);
-    Mat imgGray = (bgr[0] + bgr[1] + bgr[2]) / 3;
-    *image = imgGray;
+    *image = (bgr[0] + bgr[1] + bgr[2]) / 3;
 }
 
 void blurFilter(Mat *imgGrey)

@@ -14,6 +14,8 @@ using namespace std;
 chrono::system_clock::time_point start;
 chrono::system_clock::time_point stop;
 
+chrono::system_clock::time_point startRead;
+chrono::system_clock::time_point stopRead;
 //  FASTFLOW
 
 class emitter : public ff_monode_t<Mat>
@@ -26,13 +28,12 @@ public:
     emitter(VideoCapture *cap, bool *endVideo) : cap(cap), endVideo(endVideo) {}
     Mat *svc(Mat *image)
     {
-        while (cap->isOpened() && !*endVideo)
+        while (cap->isOpened())
         {
             Mat *image = new Mat();
             cap->read(*image);
             if (image->empty())
             {
-                *endVideo = true;
                 return (EOS);
             }
             ff_send_out(image);
@@ -41,14 +42,14 @@ public:
     }
 };
 
-class calculate : public ff_node_t<Mat>
+class workers : public ff_node_t<Mat>
 {
 private:
     Mat firstframe;
     int localresult = 0;
 
 public:
-    calculate(Mat background) : firstframe(background) {}
+    workers(Mat background) : firstframe(background) {}
     Mat *svc(Mat *image)
     {
         applyFilters(image);
@@ -68,7 +69,8 @@ int main(int argc, char **argv)
     start = std::chrono::system_clock::now();
     unsigned short cores = atoi(argv[1]);
     unsigned short ff = atoi(argv[2]);
-    string path = (argv[3]);
+    unsigned short ondemand = atoi(argv[3]);
+    string path = (argv[4]);
     int actualFrame = 1;
     vector<thread> listThreads;
     VideoCapture cap(path);
@@ -79,12 +81,12 @@ int main(int argc, char **argv)
     Mat background;
     cap.read(background);
     applyFilters(&background);
-
+ 
     if (cores >= 1 && ff == 0) // COMPUTAZIONE PARALLELA
     {
         for (unsigned short i = 0; i < cores; i++)
         {
-            listThreads.push_back(thread(takeImage, &background, &endVideo, &queueImages, &condVar,&queueLock));
+            listThreads.push_back(thread(takeImage, &background, &endVideo, &queueImages, &condVar, &queueLock));
         }
 
         while (cap.isOpened() && !endVideo)
@@ -106,6 +108,7 @@ int main(int argc, char **argv)
         {
             listThreads[i].join();
         }
+
     }
     else
     {
@@ -115,12 +118,16 @@ int main(int argc, char **argv)
             vector<unique_ptr<ff_node>> W;
             for (unsigned short i = 0; i < cores; i++)
             {
-                W.push_back(make_unique<calculate>(background));
+                W.push_back(make_unique<workers>(background));
             }
             ff_Farm<Mat> fa(move(W));
             fa.add_emitter(s1);
             fa.remove_collector();
+            if(ondemand==1){
+              fa.set_scheduling_ondemand();
+            }
             fa.run_and_wait_end();
+            // fa.ffStats(cout);
         }
         else // COMPUTAZIONE SEQUENZIALE
         {
@@ -142,10 +149,9 @@ int main(int argc, char **argv)
     }
     stop = std::chrono::system_clock::now();
     auto musec = std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
-    cout << musec << endl;
+    cout << "Completion time: " musec << endl;
     cout << "Numero frame diversi: " << differentFrames << endl;
     cout << "numero totale frames: " << actualFrame << endl;
 
-    // DA FARE è MISURARE POI DA QUANDO FACCIO A PUSH A QUANDO TERMINO DI FARE LA PUSH
     return 0;
 }
