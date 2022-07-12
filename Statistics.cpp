@@ -1,18 +1,12 @@
 #include <stdio.h>
 #include <opencv2/opencv.hpp>
 #include <chrono>
-#include <thread>
-#include <ff/ff.hpp>
 #include <iostream>
-#include <condition_variable>
 #include "Functions.hpp"
 
-using namespace ff;
 using namespace cv;
 using namespace std;
 
-chrono::system_clock::time_point start;
-chrono::system_clock::time_point stop;
 chrono::system_clock::time_point startRead;
 chrono::system_clock::time_point stopRead;
 chrono::system_clock::time_point startGrey;
@@ -24,12 +18,10 @@ chrono::system_clock::time_point stopMotion;
 chrono::system_clock::time_point startPush;
 chrono::system_clock::time_point stopPush;
 
-// END FASTFLOW
-
 int main(int argc, char **argv)
 {
-    unsigned short showVideo = atoi(argv[3]);
-    string path = (argv[4]);
+    unsigned short showVideo = atoi(argv[1]);
+    string path = (argv[2]);
     int actualFrame = 1;
 
     VideoCapture cap(path);
@@ -61,7 +53,7 @@ int main(int argc, char **argv)
         cap.read(image);
         stopRead = std::chrono::system_clock::now();
         auto musecRead = std::chrono::duration_cast<std::chrono::microseconds>(stopRead - startRead).count();
-        resultRead +=musecRead;
+        resultRead += musecRead;
 
         int result = 0;
         if (image.empty())
@@ -110,19 +102,17 @@ int main(int argc, char **argv)
         actualFrame++;
     }
 
-averageGrey = resultGrey / actualFrame;
-averageBlur = resultBlur / actualFrame;
-averageMotion = resultMotion / actualFrame;
-averageRead = resultRead / actualFrame;
-averagepush = resultPush / actualFrame;
+    averageGrey = resultGrey / actualFrame;
+    averageBlur = resultBlur / actualFrame;
+    averageMotion = resultMotion / actualFrame;
+    averageRead = resultRead / actualFrame;
+    averagepush = resultPush / actualFrame;
 
-
-    cout <<"Average read: " << averageRead << endl;
-    cout <<"Average Grey filter: "<< averageGrey << endl;
-    cout <<"Average Blur filter: " << averageBlur << endl;
-    cout <<"Average Motion: " <<averageMotion << endl;
-
- cout << "Numero frame diversi: " << differentFrames << endl;
- cout << "numero totale frames: " << actualFrame << endl;
-return 0;
+    cout << "Average read: " << averageRead << endl;
+    cout << "Average Grey filter: " << averageGrey << endl;
+    cout << "Average Blur filter: " << averageBlur << endl;
+    cout << "Average Motion: " << averageMotion << endl;
+    cout << "Numero frame diversi: " << differentFrames << endl;
+    cout << "numero totale frames: " << actualFrame << endl;
+    return 0;
 }

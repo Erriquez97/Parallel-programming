@@ -40,14 +40,14 @@
 				{
 					"directoryIndex" : 0,
 					"id" : "Statistics::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-Statistics-Debug-eee943084d4c3d20f362.json",
+					"jsonFile" : "target-Statistics-Debug-67b2e01e604f957cc00c.json",
 					"name" : "Statistics",
 					"projectIndex" : 0
 				},
 				{
 					"directoryIndex" : 0,
 					"id" : "VideoMotionDetect::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-VideoMotionDetect-Debug-2da9898b439c9c08025d.json",
+					"jsonFile" : "target-VideoMotionDetect-Debug-dbfdd9fdca62b52cb844.json",
 					"name" : "VideoMotionDetect",
 					"projectIndex" : 0
 				}

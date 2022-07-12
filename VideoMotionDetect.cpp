@@ -14,8 +14,6 @@ using namespace std;
 chrono::system_clock::time_point start;
 chrono::system_clock::time_point stop;
 
-chrono::system_clock::time_point startRead;
-chrono::system_clock::time_point stopRead;
 //  FASTFLOW
 
 class emitter : public ff_monode_t<Mat>
@@ -42,14 +40,14 @@ public:
     }
 };
 
-class workers : public ff_node_t<Mat>
+class worker : public ff_node_t<Mat>
 {
 private:
     Mat firstframe;
     int localresult = 0;
 
 public:
-    workers(Mat background) : firstframe(background) {}
+    worker(Mat background) : firstframe(background) {}
     Mat *svc(Mat *image)
     {
         applyFilters(image);
@@ -71,7 +69,6 @@ int main(int argc, char **argv)
     unsigned short ff = atoi(argv[2]);
     unsigned short ondemand = atoi(argv[3]);
     string path = (argv[4]);
-    int actualFrame = 1;
     vector<thread> listThreads;
     VideoCapture cap(path);
     bool endVideo = false;
@@ -81,12 +78,13 @@ int main(int argc, char **argv)
     Mat background;
     cap.read(background);
     applyFilters(&background);
- 
-    if (cores >= 1 && ff == 0) // COMPUTAZIONE PARALLELA
+    int numberFrames = cap.get(CAP_PROP_FRAME_COUNT);
+
+    if (cores >= 1 && ff == 0) // PARALLEL COMPUTATION
     {
         for (unsigned short i = 0; i < cores; i++)
         {
-            listThreads.push_back(thread(takeImage, &background, &endVideo, &queueImages, &condVar, &queueLock));
+            listThreads.push_back(thread(readImage, &background, &endVideo, &queueImages, &condVar, &queueLock));
         }
 
         while (cap.isOpened() && !endVideo)
@@ -102,34 +100,32 @@ int main(int argc, char **argv)
             queueImages.push(image);
             l.unlock();
             condVar.notify_one();
-            actualFrame++;
         }
         for (unsigned short i = 0; i < cores; i++)
         {
             listThreads[i].join();
         }
-
     }
     else
     {
-        if (ff == 1) // COMPUTAZIONE CON FASTFLOW
+        if (ff == 1) // FASTFLOW COMPUTATION
         {
             emitter s1(&cap, &endVideo);
             vector<unique_ptr<ff_node>> W;
             for (unsigned short i = 0; i < cores; i++)
             {
-                W.push_back(make_unique<workers>(background));
+                W.push_back(make_unique<worker>(background));
             }
             ff_Farm<Mat> fa(move(W));
             fa.add_emitter(s1);
             fa.remove_collector();
-            if(ondemand==1){
-              fa.set_scheduling_ondemand();
+            if (ondemand == 1)
+            {
+                fa.set_scheduling_ondemand();
             }
             fa.run_and_wait_end();
-            // fa.ffStats(cout);
         }
-        else // COMPUTAZIONE SEQUENZIALE
+        else // SEQUENTIAL COMPUTATION
         {
             while (cap.isOpened() && !endVideo)
             {
@@ -143,15 +139,14 @@ int main(int argc, char **argv)
                 }
                 applyFilters(&image);
                 differentFrames += checkMotion(&image, &background);
-                actualFrame++;
             }
         }
     }
     stop = std::chrono::system_clock::now();
     auto musec = std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
-    cout << "Completion time: " musec << endl;
+    cout << "Completion time: " << musec << endl;
     cout << "Numero frame diversi: " << differentFrames << endl;
-    cout << "numero totale frames: " << actualFrame << endl;
+    cout << "numero totale frames: " << numberFrames << endl;
 
     return 0;
 }

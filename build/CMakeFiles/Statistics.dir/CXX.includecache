@@ -607,13 +607,7 @@ opencv2/opencv.hpp
 -
 chrono
 -
-thread
--
-ff/ff.hpp
--
 iostream
--
-condition_variable
 -
 Functions.hpp
 /home/domenico/VideoMotionDetect/Functions.hpp

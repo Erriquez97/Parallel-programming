@@ -1,4 +1,3 @@
-#pragma once
 #include <opencv2/opencv.hpp>
 #include <stdio.h>
 #include <opencv2/opencv.hpp>
@@ -14,7 +13,6 @@ using namespace cv;
 atomic<int> differentFrames;
 float minthreshold = 0.7;
 
-
 void greyFilter(Mat *image)
 {
     Mat bgr[3];
@@ -25,7 +23,6 @@ void greyFilter(Mat *image)
 void blurFilter(Mat *imgGrey)
 {
     Mat imgSmooth = imgGrey->clone();
-    //   blur(*imgGrey, imgSmooth, Size(3, 3));
     for (int i = 0; i < imgGrey->rows; i++)
     {
         for (int j = 0; j < imgGrey->cols; j++)
@@ -37,15 +34,13 @@ void blurFilter(Mat *imgGrey)
                 for (int J = max(j - 1, 0); J < min(j + 2, imgGrey->cols); ++J)
                 {
                     count++;
-                    value = value + (uchar)imgGrey->at<uchar>(I, J); // reason of uchar: CV_8U is unsigned 8bit/pixel - ie a pixel can have values 0-255, this is the normal range for most image and video formats.
+                    value = value + (uchar)imgGrey->at<uchar>(I, J);
                 }
             }
             imgSmooth.at<uchar>(i, j) = value / count;
         }
     }
     *imgGrey = imgSmooth;
-    // auto musecBlur = std::chrono::duration_cast<std::chrono::microseconds>(stopBlur - startBlur).count();
-    // blurtotal += musecBlur;
 }
 
 int checkMotion(Mat *image, Mat *firstFrame)
@@ -53,10 +48,8 @@ int checkMotion(Mat *image, Mat *firstFrame)
     if (!image->empty())
     {
         Mat diffImage;
-        // greyFilter(image);
-        // blurFilter(image);
         absdiff(*firstFrame, *image, diffImage);
-        float numberDifferentPixels = countNonZero(diffImage); // PIXEL UGUALI A 0 SIGNIFICA CHE SONO UGUALI ALL'IMMAGINE COMPARATA
+        float numberDifferentPixels = countNonZero(diffImage); // Pixel equals 0 it means there is no difference between the 2 pixels compared
         float size = diffImage.rows * diffImage.cols;
         float result = numberDifferentPixels / size;
         return result > minthreshold;
@@ -70,7 +63,7 @@ void applyFilters(Mat *image)
     blurFilter(image);
 }
 
-void takeImage(Mat *firstframe, bool *endVideo, queue<Mat> *queueImages, condition_variable *condVar, mutex *queueLock)
+void readImage(Mat *firstframe, bool *endVideo, queue<Mat> *queueImages, condition_variable *condVar, mutex *queueLock)
 {
     int localresult = 0;
     while (true)
@@ -80,7 +73,7 @@ void takeImage(Mat *firstframe, bool *endVideo, queue<Mat> *queueImages, conditi
         unique_lock<mutex> l(*queueLock);
         while (queueImages->empty() && !*endVideo)
         {
-            condVar->wait(l);  // quando aspetto rilascio il lock e quando vengo notificato riacquisisco il lock
+            condVar->wait(l);
         }
         if (queueImages->empty() && *endVideo)
         {
