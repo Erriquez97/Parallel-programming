@@ -23,7 +23,7 @@ private:
     bool *endVideo;
 
 public:
-    emitter(VideoCapture *cap, bool *endVideo) : cap(cap), endVideo(endVideo) {}
+    emitter(VideoCapture *cap) : cap(cap){}
     Mat *svc(Mat *image)
     {
         while (cap->isOpened())
@@ -110,7 +110,7 @@ int main(int argc, char **argv)
     {
         if (ff == 1) // FASTFLOW COMPUTATION
         {
-            emitter s1(&cap, &endVideo);
+            emitter s1(&cap);
             vector<unique_ptr<ff_node>> W;
             for (unsigned short i = 0; i < cores; i++)
             {
@@ -146,7 +146,7 @@ int main(int argc, char **argv)
     auto musec = std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
     cout << "Completion time: " << musec << endl;
     cout << "Numero frame diversi: " << differentFrames << endl;
-    cout << "numero totale frames: " << numberFrames << endl;
+    cout << "Numero totale frames: " << numberFrames << endl;
 
     return 0;
 }

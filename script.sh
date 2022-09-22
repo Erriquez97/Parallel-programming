@@ -6,10 +6,9 @@ echo "Esecuzione con $i threads"
 do
     echo
     ./build/VideoMotionDetect $i 1 0 Resources/Video720p.mp4 
+done     
 done   
-    
-done   
-for i in {1..10}
+
 
     
     
